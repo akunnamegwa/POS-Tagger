@@ -1,64 +1,71 @@
-# File with tests for Tagger.py
+import os
+import unittest
+from unittest.mock import patch
+from tagger import sentence_inferencing, viterbi_inference, write_solution, fine_tune
 
+class TestTagger(unittest.TestCase):
+    def setUp(self):
+        # Use a sample test file based on your training data
+        self.sample_test_file = ['Detective : NP0', 'Chief : NP0', 'Inspector : NP0', 'John : NP0',
+                                 'McLeish : NP0', 'gazed : VVD', 'doubtfully : AV0', 'at : PRP',
+                                 'the : AT0', 'plate : NN1', 'before : PRP', 'him : PNP', '. : PUN',
+                                 'Having : VHG', 'thought : VVN', 'he : PNP', 'was : VBD', 'hungry : AJ0',
+                                 ', : PUN', 'he : PNP', 'now : AV0', 'realized : VVD', 'that : CJT',
+                                 'actually : AV0', 'he : PNP', 'needed : VVD', 'anything : PNI',
+                                 'rather : AV0', 'than : CJS', 'the : AT0', 'overflowing : AJ0-VVG',
+                                 'plate : NN1', 'of : PRF', 'cholesterol : NN1', 'the : AT0', 'canteen : NN1',
+                                 'at : PRP', 'New : AJ0', 'Scotland : NP0', 'Yard : NN1', 'had : VHD',
+                                 'provided : VVN', 'with : PRP', 'such : DT0', 'admirable : AJ0',
+                                 'promptness : NN1', '. : PUN', '" : PUQ']
 
-def create_test(text, output):
-    """
-    Create a test file based on text from a training file
-    :param output:
-    :type text: str
-    :param text:
-    :type output: str
-    :return:
-    """
-    file = open(text)
-    lines = file.readlines()
-    file2 = open(output, 'w')
-    for pair in lines:
-        word = pair.partition(':')[0].strip()
-        file2.write(word + '\n')
+        self.output_file = 'test_output.txt'
 
-    file2.close()
-    file.close()
+    def tearDown(self):
+        if os.path.exists(self.output_file):
+            os.remove(self.output_file)
 
+    def test_sentence_inferencing(self):
+        # Test with a sentence from the training data
+        test_sentence = ['Detective', 'John', 'gazed', 'doubtfully', 'at', 'the', 'plate', '.']
+        expected_result = [('Detective', 'NP0'), ('John', 'NP0'), ('gazed', 'VVD'), ('doubtfully', 'AV0'),
+                           ('at', 'PRP'), ('the', 'AT0'), ('plate', 'NN1'), ('.', 'PUN')]
+        result = sentence_inferencing(test_sentence)
+        self.assertEqual(result, expected_result)
 
-def count_matches(correct_solution, tagger_solution):
-    """
-    :type correct_solution: file
-    :type tagger_solution: file
-    :return:
-    """
-    correct = []
-    tagger = []
-    c_lines = open(correct_solution).readlines()
-    t_lines = open(tagger_solution).readlines()
-    for i in range(len(c_lines)):
-        c_info = c_lines[i].partition(':')
-        c_word = c_info[0].strip()
-        c_tag = c_info[2].strip('\n').strip()
+    def test_viterbi_inference(self):
+        # Mocking input data for viterbi_inference
+        test_data = [['Detective', 'John', 'gazed', 'doubtfully', 'at', 'the', 'plate', '.']]
+        expected_result = [('Detective', 'NP0'), ('John', 'NP0'), ('gazed', 'VVD'), ('doubtfully', 'AV0'),
+                           ('at', 'PRP'), ('the', 'AT0'), ('plate', 'NN1'), ('.', 'PUN')]
 
-        t_info = t_lines[i].partition(':')
-        t_word = t_info[0].strip()
-        t_tag = t_info[2].strip('\n').strip()
+        with patch('builtins.input', side_effect=test_data):
+            result = viterbi_inference(test_data)
+        self.assertEqual(result, expected_result)
 
-        correct.append((c_word, c_tag))
-        tagger.append((t_word, t_tag))
+    def test_write_solution(self):
+        # Test writing a solution to the output file
+        test_data = [('Detective', 'NP0'), ('John', 'NP0'), ('gazed', 'VVD'), ('doubtfully', 'AV0'),
+                     ('at', 'PRP'), ('the', 'AT0'), ('plate', 'NN1'), ('.', 'PUN')]
+        write_solution(test_data, self.output_file)
 
-    result = []
-    for i in range(len(correct)):
-        if correct[i] != tagger[i]:
-            result.append((i, correct[i][0], correct[i][1], tagger[i][1]))
+        # Check if the file was created and contains the expected content
+        with open(self.output_file, 'r') as file:
+            content = file.read()
+        expected_content = "Detective : NP0\nJohn : NP0\ngazed : VVD\ndoubtfully : AV0\nat : PRP\n" \
+                           "the : AT0\nplate : NN1\n. : PUN\n"
+        self.assertEqual(content, expected_content)
 
-    accuracy = str(((len(result) / len(correct)) - 1) * -100
-                   )
-    # TODO: create a test output file instead of printing
-    message = 'Accuracy is ' + accuracy + '\n' + 'The following are incorrect \n'
-    for answer in result:
-        mess = 'Line {0}: {1} should be {2}, got {3}'
-        mess = mess.format(answer[0], answer[1], answer[2], answer[3])
-        message += mess + '\n'
+    def test_fine_tune(self):
+        # Test fine-tuning based on English structure
+        test_data = [('Detective', 'NP0'), ('gazed', 'VVD'), ('doubtfully', 'AV0'),
+                     ('at', 'PRP'), ('the', 'AT0'), ('plate', 'NN1'), ('.', 'PUN')]
+        fine_tune(test_data)
 
-    return message
+        # Check if the tags were updated as expected
+        expected_result = [('Detective', 'NP0'), ('gazed', 'VVD'), ('doubtfully', 'AV0'),
+                           ('at', 'PRP'), ('the', 'AT0'), ('plate', 'NN1'), ('.', 'PUN')]
+        self.assertEqual(test_data, expected_result)
 
+if __name__ == '__main__':
+    unittest.main()
 
-x = count_matches('training2.txt', 'init2_test.txt')
-print(x)
